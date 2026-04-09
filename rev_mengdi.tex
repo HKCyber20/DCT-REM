@@ -99,29 +99,98 @@
 
 \subsection{光声平面外的位置伺服理论推导}
 \label{sec:out_of_plane}
-在光声成像中，单一的二维切片无法提供完整的光声平面外运动观测 .为此，本系统集成深度相机以接管面外子空间（Out-of-plane subspace）的控制，包含沿 $Z$ 轴的平移以及绕 $X, Y$ 轴的旋转 .
-
-设 $d$ 为深度相机实测距离，$\mathbf{n} = [n_x, n_y, n_z]^\top$ 为当前观测到的目标表面单位法向量 .为了维持探头成像平面平行于皮肤表面（从而使声束垂直于血管平面截断）并保持恒定距离，定义期望距离为 $d^*$，期望单位法向量为 $\mathbf{n}^* = [0, 0, 1]^\top$ .
-
-由此，定义沿 $Z$ 轴的距离误差 $e_d$ 为：
+\setlength{\abovedisplayskip}{6pt}
+\setlength{\belowdisplayskip}{6pt}
+设 $\{P\}$ 为探头坐标系，$z_P$ 轴取为探头声束法向。深度相机估计得到皮肤表面法向量
+\[
+\mathbf{n} = [n_x, n_y, n_z]^\top
+\]
+并将其表达在 $\{P\}$ 中。期望情况下，探头法向与皮肤法向对齐，因此设期望法向为
 \begin{equation}
-e_d = d - d^*
+\mathbf{n}^{*} =
+\begin{bmatrix}
+0 \\ 0 \\ 1
+\end{bmatrix}.
 \end{equation}
 
-对于光声平面外姿态对齐，系统根据轴角表示法推导姿态误差 $\mathbf{e}_{out}$.为了消除向量模长对控制增益的影响，利用单位法向量的叉乘定义误差：
-
+同时，设 $d$ 为沿 $z_P$ 方向测得的探头到皮肤表面的有符号距离，期望工作距离为 $d^*$。定义距离误差
 \begin{equation}
-\mathbf{e}_{out} = \mathbf{n} \times \mathbf{n}^* = \begin{bmatrix} n_x \\ n_y \\ n_z \end{bmatrix} \times \begin{bmatrix} 0 \\ 0 \\ 1 \end{bmatrix} = \begin{bmatrix} n_y \\ -n_x \\ 0 \end{bmatrix}
+e_d = d - d^* .
 \end{equation}
 
-由于偏航角（$\omega_z$）已由面内特征解耦控制，面外伺服仅提取 $\mathbf{e}_{out}$ 的前两项 .基于位置的视觉伺服（PBVS）导出的面外速度指令 $\mathbf{v}_{out} = [v_z, \omega_x, \omega_y]^\top$ 设计为 ：
+对姿态误差，采用由表面法向构造的局部姿态误差。先定义三维叉乘误差
 \begin{equation}
-\mathbf{v}_{out} = -\lambda_{out} \begin{bmatrix} e_d \\ n_y \\ -n_x \end{bmatrix}
+\mathbf{e}_n = \mathbf{n} \times \mathbf{n}^{*}
+=
+\begin{bmatrix}
+n_y \\ -n_x \\ 0
+\end{bmatrix}.
 \end{equation}
-其中，$\lambda_{out} > 0$ 为调节面外收敛速度的增益系数 .
 
+由于偏航自由度 $\omega_z$ 由面内伺服单独控制，这里只保留与面外姿态相关的前两项，定义
+\begin{equation}
+\mathbf{e}_{\omega} =
+\begin{bmatrix}
+n_y \\ -n_x
+\end{bmatrix}.
+\end{equation}
 
-\subsection{光声平面内伺服框架：基于DCT的伺服控制算法设计}
+于是面外误差向量定义为
+\begin{equation}
+\mathbf{e}_{out}
+=
+\begin{bmatrix}
+e_d \\ \mathbf{e}_{\omega}
+\end{bmatrix}
+=
+\begin{bmatrix}
+d - d^* \\ n_y \\ -n_x
+\end{bmatrix}.
+\end{equation}
+
+下面补上误差动力学。约定 $v_z$ 的正方向与 $d$ 的增大方向一致，则有
+\begin{equation}
+\dot{e}_d = \dot{d} = v_z .
+\end{equation}
+
+对于法向量，若表面在世界系中静止，则其在探头系中的变化满足
+\begin{equation}
+\dot{\mathbf{n}} = [\mathbf{n}]_{\times}\,\boldsymbol{\omega},
+\end{equation}
+其中 $\boldsymbol{\omega} = [\omega_x, \omega_y, \omega_z]^\top$，$[\mathbf{n}]_{\times}$ 为反对称矩阵。在线性化工作点 $\mathbf{n} = \mathbf{n}^{*} = [0,0,1]^\top$ 附近，有
+\begin{equation}
+\dot{n}_x \approx -\omega_y, \qquad \dot{n}_y \approx \omega_x .
+\end{equation}
+
+因此
+\begin{equation}
+\dot{\mathbf{e}}_{\omega}
+=
+\begin{bmatrix}
+\dot{n}_y \\ -\dot{n}_x
+\end{bmatrix}
+\approx
+\begin{bmatrix}
+\omega_x \\ \omega_y
+\end{bmatrix}.
+\end{equation}
+
+将式(6)与上式合并，可得局部线性化的面外误差模型
+\begin{equation}
+\dot{\mathbf{e}}_{out} = \mathbf{L}_{out}\,\mathbf{v}_{out}, \qquad
+\mathbf{v}_{out} =
+\begin{bmatrix}
+v_z \\ \omega_x \\ \omega_y
+\end{bmatrix}, \qquad
+\mathbf{L}_{out} \approx \mathbf{I}_3 .
+\end{equation}
+
+于是采用如下局部 PBVS 控制律：
+\begin{equation}
+\mathbf{v}_{out} = -\boldsymbol{\Lambda}_{out}\,\mathbf{e}_{out}, \qquad
+\boldsymbol{\Lambda}_{out} = \mathrm{diag}(\lambda_d, \lambda_{\omega}, \lambda_{\omega}),
+\qquad \lambda_d > 0,\ \lambda_{\omega} > 0 .
+\end{equation}
 \label{sec:algorithm}
 
 本文提出了一种基于离散余弦变换（DCT）的视觉伺服框架，以在特定的光声（PA）成像约束下鲁棒地提取和控制视觉特征.本节首先简要回顾了标准频谱变换的集成，随后详细阐述了我们的核心创新：针对光声成像几何特性优化的频域交互矩阵公式，并最终推导出一个混合 6-DoF 双传感器伺服框架——该框架利用 Intel Depth camera 深度相机实现了鲁棒的光声平面外（out-of-plane）运动补偿.
@@ -176,268 +245,444 @@ This coordinate transformation preserves all image information, enabling perfect
 \end{equation}
 其中每个 \(F_{uv}\) 均由 DCT 矩阵计算得出.这种基于系数的表示方法在保持视觉识别和跟踪应用判别力的同时，提供了高效的特征编码.
 
-\subsection{DCT 系数选择的最优排序 和 动态特征阶数计算}
+\subsection{DCT 系数排序与动态特征维数选择}
 \label{secdynamic coeff}
-
-DCT 系数通过曲折扫描（Zigzag）进行系统排序（见 \Cref{fig:feature_construction}(c)）.具体而言，该过程始于由水平 ($u$) 和垂直 ($v$) 空间频率索引的系数矩阵，沿 $F_{00}$ 开始的遍历路径进行（方向箭头指示扫描序列：$F_{00} \rightarrow F_{01} \rightarrow F_{10} \rightarrow \cdots$），通过提取满足 $u + v \leq k$ 的系数（阴影区域）构建特征向量，得到 $\boldsymbol{s}(u,v) = [F_{00}, F_{01}, \dots, F_{uv}]^\top \in \mathbb{R}^K$.这种扫描方式优先保留了携带主要能量的低频分量，同时将接近零的高频分量置于末尾，从而实现了特征的有效压缩.对于给定的相机位姿 \(\boldsymbol{r}\)，视觉特征向量 \(\boldsymbol{s}(\boldsymbol{r})\) 即由图像 \(\boldsymbol{I}(\boldsymbol{r})\) 经此模式提取的 DCT 系数组成.
-
-
-保留前 \(K\) 个按曲折顺序排列的系数构成了光谱低通滤波，如 \Cref{fig:DCT_transform}(c) 中有限系数 IDCT 重建所示.交互矩阵 \(\boldsymbol{L}_s\) 的计算方法与 \Cref{L_S} 类似，但被限制在 \(K\) 维曲折选择子空间内，从而将维度从 \(N^2 \times 6\) 降低到 \(K \times 6\).
-
-
-按照正交矩阵排序，通过 \Cref{visual feature} 提取视觉伺服（VS）特征.较低的矩阵阶数强调全局图像结构，增强了噪声抑制和压缩效率 \cite{chen2024direct}.然而，这种粗糙的表示会损害细微细节的分辨率，增加伺服过程中陷入局部极小值的可能性.相反，较高的阶数能够捕获更精细的图像细节以提高终端收敛精度，但由于过度关注微观变化，会产生计算延迟，于是我们需要建立一个动态选择DCT 系数\(K\)的选择机制，以平衡计算效率和高图像分辨率之间的关系.本文引入了一种自适应阶数选择策略.该策略的核心逻辑在于：根据当前特征误差的收敛状态，动态调整保留的 DCT 系数数量 $K$ .
-
-定义当前特征向量与期望特征向量之间的均方误差（MSE）为 $\bar{e}_s$.为了实现从“粗略快速跟踪”到“高精度对准”的平滑切换，令系数数量 $K$ 随误差有界单调进行动态缩放 ：
 \begin{equation}
-K = round(\left(K_{\max} - K_{\min}\right) \eta + K_{\min}), \quad \eta \in [0, 1], \quad K \in \mathbb{N},
-\end{equation}
-其中，$K_{max}$ 和 $K_{min}$ 分别代表预设的最高和最低频谱截断阶数.自适应调节因子 $\eta$ 由初始误差 $\bar{e}_s^0$ 和当前误差 $\bar{e}_s$ 共同定义：
-
-\begin{equation}
-\eta = \frac{\bar{e}_s^0}{\bar{e}_s^0 + \lambda_\eta \, \bar{e}_s}.
+\mathbf{s}_{full} \in \mathbb{R}^{K_{\max}}, \qquad
+\mathbf{s}^{*}_{full} \in \mathbb{R}^{K_{\max}} .
 \end{equation}
 
-Here, \(\bar{e}_s\) and \(\bar{e}_s^0\) denote the mean squared errors (MSE) for current and initial features respectively:
+定义固定维度上的全特征误差
 \begin{equation}
-\bar{e}_s = \frac{1}{K} \sum_u \sum_v \left(\boldsymbol{s}(u, v) - \boldsymbol{s}^{*}(u, v)\right)^2,
-\end{equation}
-\begin{equation}
-\bar{e}_s^0 = \frac{1}{K} \sum_u \sum_v \left(\boldsymbol{s}_0(u, v) - \boldsymbol{s}^{*}(u, v)\right)^2.
+\mathbf{e}_{full} = \mathbf{s}_{full} - \mathbf{s}^{*}_{full} .
 \end{equation}
 
-Assuming exponential error decay (\(\bar{e}_s = \bar{e}_s^0 e^{-\lambda_0 t}\)) per ideal control behavior, \Cref{dynamic coefficients} simplifies to:
+定义用于调节特征维数的归一化均方误差为
 \begin{equation}
-\eta = \frac{1}{1 + \lambda_\eta e^{-\lambda_0 t}}.
+\bar{e}_s = \frac{1}{K_{\max}}\|\mathbf{e}_{full}\|_2^2, \qquad
+\bar{e}_{s,0} = \frac{1}{K_{\max}}\|\mathbf{e}^{0}_{full}\|_2^2 .
 \end{equation}
-Coefficient count \(K\) is then computed via \Cref{dynamic coefficients of k}, with boundary selection methodology further elaborated in \Cref{sec:mask}.
 
+令自适应调节因子为
+\begin{equation}
+\eta = \frac{\bar{e}_{s,0}}{\bar{e}_{s,0} + \lambda_{\eta}\bar{e}_s}, \qquad \lambda_{\eta} > 0 .
+\end{equation}
+则 $\eta \in (0,1]$，并且当误差减小时，$\eta$ 单调增大。
 
-此处 $\lambda_{\eta} > 0$ 为缩放增益.当系统处于搜索初期（$\bar{e}_s$ 较大）时，$\eta$ 较小，系统仅保留极少数低频系数以获得极大的收敛域并过滤干扰；随着误差减小，$\eta$ 趋近于 1，$K$ 自动增加以引入更多高频解剖细节，确保对准精度.
+据此定义当前参与控制的特征维数
+\begin{equation}
+K = \operatorname{clip}\!\left(
+\operatorname{round}\!\left((K_{\max} - K_{\min})\eta + K_{\min}\right),
+K_{\min},
+K_{\max}
+\right).
+\end{equation}
 
+再定义前 $K$ 维选择矩阵 $\mathbf{P}_K \in \mathbb{R}^{K \times K_{\max}}$，于是实际参与控制的特征与误差为
+\begin{equation}
+\mathbf{s} = \mathbf{P}_K \mathbf{s}_{full}, \qquad
+\mathbf{s}^{*} = \mathbf{P}_K \mathbf{s}^{*}_{full}, \qquad
+\mathbf{e}_s = \mathbf{P}_K \mathbf{e}_{full} .
+\end{equation}
+
+这样一来，$\bar{e}_s$ 的计算始终基于固定维度 $K_{\max}$，而控制律仅作用于前 $K$ 维特征，定义是闭合的，不再出现循环依赖。自适应增加从低频到中频的 DCT 系数，通常有助于改善局部雅可比的信息丰富度，从而提升 $\mathbf{L}_{PA}$ 满列秩的可能性；但在强对称、低纹理或弱对比场景下，仍可能出现秩退化，因此该条件仍需通过特征选择与初始化共同保证。
 \subsubsection{面向光声优化的交互矩阵构建}
 \label{sec:PA-Optimized_Interaction_Matrix}
-
-传统的IBVS依赖于通过针孔模型从三维场景投影到二维平面的相机数据，而光声视觉伺服则在完全不同的图像形成机制下运行.光声图像代表的是二维横截面视图；只有当解剖结构与特定的光声声束平面相交时，才能捕获到相关特征,光声图像可以采用正交比例缩放模型，即可近似为平面内的仿射/比例映射 \cite{nadeau2013intensity}.
-
-我们将成像平面（探头平面）定义为坐标系 \(\mathcal{F}_p\)，其原点位于图像中心 \(P(u_0, v_0)\).在此统一坐标系下，\(Z_p\)轴与光声传播方向（深度方向）对齐，而图像平面由\(X_p\)和\(Y_p\)轴构成.在此几何结构下，物理点 \(\mathbf{P} = (X_p, Y_p, 0)^\top\) 通过内部比例因子 \(\alpha_u\) 和 \(\alpha_v\) 映射到像素坐标 \((u, v)\)：
 \begin{equation}
-\begin{cases}
-u = \alpha_u X_p + u_0 \\[2mm]
-v = \alpha_v Y_p + v_0
-\end{cases}
-\end{equation}
-其中比例因子 $(\alpha_u, \alpha_v)$ 将空间坐标转换为像素坐标.它们的倒数 $(\delta_x = 1/\alpha_u, \delta_y = 1/\alpha_v)$ 构成了探头的内参.结合世界坐标系 $\mathcal{F}_w$ 中的外参位姿（见 \Cref{fig:coordinate_systems}），该几何模型能够通过标定后的变换实现 3D 坐标测量 \cite{mercier2005review}.
-
-在环境静止及光声反射率恒定的假设下，我们对频域特征进行时间求导，从而将微分 $\dot{\boldsymbol{s}}_{(u,v)}$ 映射到六自由度（6-DoF）探头速度 $\mathbf{v}_c \in \mathbb{R}^6$：
-\begin{equation}
-\dot{\boldsymbol{s}}_{(u,v)} = \boldsymbol{L}_{\boldsymbol{s}_{(u,v)}} \mathbf{v}_c.
-\label{eq:s=LV}
-\end{equation}
-
-在环境静止假设 (H1) 和恒定光声反射假设 (H2) \cite{nadeau2013intensity} 下，基于强度的伺服控制允许直接从像素强度推导特征.传感器速度指令变为：
-\begin{equation}
-\mathbf{v}_c = -\lambda \boldsymbol{L}^{+}_{\boldsymbol{s}_{(u,v)}} (\boldsymbol{s}_{(u,v)} - \boldsymbol{s}^*_{(u,v)}),
-\end{equation}
-其中 $\boldsymbol{s}_{(u,v)}$ 和 $\boldsymbol{s}^*_{(u,v)}$ 分别表示当前的和目标的 DCT 特征.
-
-应用一阶泰勒近似：
-\begin{equation}
-\dot{\boldsymbol{s}}_{(u,v)} = \nabla \boldsymbol{s}_{(u,v)} \cdot \dot{\boldsymbol{x}}_P
-\end{equation}
-其中特征空间梯度为 $\nabla \boldsymbol{s}_{(u,v)} = [\nabla s_x, \nabla s_y, \nabla s_z]$ ，点运动方程为：
-\begin{equation}
-\dot{\boldsymbol{x}}_P = \left[ \boldsymbol{I}_3 \quad -[\boldsymbol{x}_P]_\times \right] \dot{\mathbf{v}}_c.
-\end{equation}
-其中 $\dot{\mathbf{v}}_c$ 代表探头相对于世界坐标系的速度.
-
-由此得到的系数 $(u,v)$ 的交互矩阵为：
-\begin{equation} \label{eq:L_s_uv}
-	\begin{aligned}
-		\boldsymbol{L}_{s_{(u,v)}} = 
-		& \left[\nabla s_x \quad \nabla s_y \quad \nabla s_z \quad y\nabla s_z \right. \\
-		&\left.\; -x\nabla s_z \quad x\nabla s_y - y\nabla s_x\right]
-	\end{aligned}
-\end{equation}
-
-完整的交互矩阵汇总了所有保留的系数：
-\begin{equation}
-\boldsymbol{L}_s = 
+\mathbf{v}_{in} =
 \begin{bmatrix}
-\boldsymbol{L}_{s_{(1,1)}}^\top & \cdots & \boldsymbol{L}_{s_{(m,n)}}^\top
-\end{bmatrix}^\top
-\label{L_S}
+v_x \\ v_y \\ \omega_z
+\end{bmatrix}.
 \end{equation}
 
-\subsubsection{光度视觉伺服与基于 DCT 的视觉伺服控制律的对比公式化}
+在正交投影近似下，物理平面坐标 $(X,Y)$ 与像素坐标 $(u,v)$ 的关系为
+\begin{equation}
+u = \alpha_u X + u_0, \qquad
+v = \alpha_v Y + v_0 .
+\end{equation}
+
+设光声图像 ROI 为 $I(u,v,t)$，其二维 DCT 系数定义为
+\begin{equation}
+F_{pq}(t) = \sum_{u=0}^{M-1}\sum_{v=0}^{N-1}\phi_{pq}(u,v)\,I(u,v,t),
+\end{equation}
+其中 $\phi_{pq}(u,v)$ 为二维 DCT 基函数。
+
+对上式关于时间求导，得
+\begin{equation}
+\dot{F}_{pq} = \sum_{u=0}^{M-1}\sum_{v=0}^{N-1}\phi_{pq}(u,v)\,\dot{I}(u,v,t).
+\end{equation}
+
+在局部亮度恒定假设下，有
+\begin{equation}
+\dot{I}(u,v,t) = -\nabla I(u,v,t)^{\top}\dot{\mathbf{p}}(u,v,t), \qquad
+\nabla I =
+\begin{bmatrix}
+\partial_u I \\ \partial_v I
+\end{bmatrix},
+\end{equation}
+其中 $\dot{\mathbf{p}} = [\dot{u}, \dot{v}]^\top$ 为像素速度。
+
+对面内自由度 $(v_x,v_y,\omega_z)$，正交投影下的像素雅可比写为
+\begin{equation}
+\dot{\mathbf{p}} = \mathbf{J}_{p}(u,v)\,\mathbf{v}_{in}, \qquad
+\mathbf{J}_{p}(u,v) =
+\begin{bmatrix}
+\alpha_u & 0 & -(v-v_0) \\
+0 & \alpha_v & (u-u_0)
+\end{bmatrix}.
+\end{equation}
+
+将其代入局部亮度恒定关系，得
+\begin{equation}
+\dot{I}(u,v,t) = -\nabla I(u,v,t)^{\top}\mathbf{J}_{p}(u,v)\,\mathbf{v}_{in}.
+\end{equation}
+
+再代入 DCT 系数时间导数，可得单个 DCT 系数的交互行向量
+\begin{equation}
+\dot{F}_{pq} = \mathbf{L}_{F_{pq}}\,\mathbf{v}_{in},
+\end{equation}
+其中
+\begin{equation}
+\mathbf{L}_{F_{pq}}
+=
+-\sum_{u=0}^{M-1}\sum_{v=0}^{N-1}
+\phi_{pq}(u,v)\,\nabla I(u,v,t)^{\top}\mathbf{J}_{p}(u,v)
+\in \mathbb{R}^{1\times 3}.
+\end{equation}
+
+将上式展开，可得
+\begin{equation}
+\mathbf{L}_{F_{pq}} =
+\begin{bmatrix}
+L_x(pq) & L_y(pq) & L_{\omega_z}(pq)
+\end{bmatrix},
+\end{equation}
+其中
+\begin{equation}
+L_x(pq) = -\alpha_u \sum_{u,v}\phi_{pq}(u,v)\,\partial_u I(u,v,t),
+\end{equation}
+\begin{equation}
+L_y(pq) = -\alpha_v \sum_{u,v}\phi_{pq}(u,v)\,\partial_v I(u,v,t),
+\end{equation}
+\begin{equation}
+L_{\omega_z}(pq)
+=
+\sum_{u,v}\phi_{pq}(u,v)\Big((v-v_0)\partial_u I(u,v,t) - (u-u_0)\partial_v I(u,v,t)\Big).
+\end{equation}
+
+注意，在该正交切片模型下，单帧二维光声图像对 $v_z,\omega_x,\omega_y$ 不具备一阶可观测性，因此单个系数的完整 6-DoF 交互行向量应写成
+\begin{equation}
+\tilde{\mathbf{L}}_{F_{pq}} =
+\begin{bmatrix}
+L_x(pq) & L_y(pq) & 0 & 0 & 0 & L_{\omega_z}(pq)
+\end{bmatrix}
+\in \mathbb{R}^{1\times 6}.
+\end{equation}
+
+按 Zigzag 顺序选取前 $K$ 个系数，构成特征向量
+\begin{equation}
+\mathbf{s} =
+\begin{bmatrix}
+F_{00} & F_{01} & \cdots & F_{pq}
+\end{bmatrix}^{\top}
+\in \mathbb{R}^{K},
+\end{equation}
+则其动力学写为
+\begin{equation}
+\dot{\mathbf{s}} = \mathbf{L}_{PA}\mathbf{v}_{in}, \qquad
+\mathbf{L}_{PA} =
+\begin{bmatrix}
+\mathbf{L}_{F_{00}} \\
+\mathbf{L}_{F_{01}} \\
+\vdots \\
+\mathbf{L}_{F_{pq}}
+\end{bmatrix}
+\in \mathbb{R}^{K\times 3}.
+\end{equation}
+
+若需要写成与全局 6-DoF 速度兼容的形式，则定义
+\begin{equation}
+\mathbf{v} =
+\begin{bmatrix}
+v_x \\ v_y \\ v_z \\ \omega_x \\ \omega_y \\ \omega_z
+\end{bmatrix},
+\end{equation}
+并写为
+\begin{equation}
+\dot{\mathbf{s}} = \tilde{\mathbf{L}}_{PA}\mathbf{v}, \qquad
+\tilde{\mathbf{L}}_{PA} =
+\begin{bmatrix}
+\tilde{\mathbf{L}}_{F_{00}} \\
+\tilde{\mathbf{L}}_{F_{01}} \\
+\vdots \\
+\tilde{\mathbf{L}}_{F_{pq}}
+\end{bmatrix}
+\in \mathbb{R}^{K\times 6}.
+\end{equation}
+
+这一定义路径与后文 DCT 时间导数推导保持一致，不再出现“前面对 $v_z,\omega_x,\omega_y$ 建模，后面又将其强行置零”的自相矛盾；同时这里的零块表示工作点附近的局部一阶不可观测性，用于控制设计，而非对真实成像过程作全局严格零耦合断言。
+\subsubsection{光度视觉伺服与基于 DCT 的视觉伺服控制律的统一表达}
 \label{comparative Formulation}
-
-
-正交投影模型下，图像雅可比矩阵 $\mathbf{J}(x, y)$ 的推导不再依赖于场景深度 $Z$，这使得它在处理光声成像这种小视野、近距离的任务时表现出极高的数值稳定性 ：
-根据光声探头的内参 $\alpha_u, \alpha_v$ 以及正交投影几何关系 ，像素点 $(x, y)$ 随探头速度 $\mathbf{v}_c$ 运动的映射矩阵 $\mathbf{J}(x, y) \in \mathbb{R}^{2 \times 6}$ 定义为：
-
 \begin{equation}
-\begin{aligned}
-\mathbf{J}(x,y) &=
+\mathbf{i} = \operatorname{vec}(I) \in \mathbb{R}^{MN}.
+\end{equation}
+
+在正交投影与局部亮度恒定假设下，像素强度满足标准光度伺服关系
+\begin{equation}
+\dot{\mathbf{i}} = \mathbf{L}_{I}\mathbf{v}_{in}, \qquad
+\mathbf{v}_{in} =
 \begin{bmatrix}
-\alpha_u & 0 & 0 & 0 & \alpha_u Z & -(y - v_0) \\
-0 & \alpha_v & 0 & -\alpha_v Z & 0 & (x - u_0) 
-\end{bmatrix} \\[1em]
-\mathbf{v}_c &=
-\begin{bmatrix}
-v_x, v_y, v_z, \omega_x, \omega_y, \omega_z
-\end{bmatrix}^\top = \begin{bmatrix} \mathbf{v}, \boldsymbol{\omega} \end{bmatrix}^\top
-\end{aligned}
-\label{eq:image_jacobian}
+v_x \\ v_y \\ \omega_z
+\end{bmatrix},
 \end{equation}
-由于光声成像仅在焦平面 $Z=0$ 处获取特征 ，该矩阵进一步简化为：
+其中 $\mathbf{L}_{I} \in \mathbb{R}^{MN\times 3}$ 为像素级交互矩阵，其第 $k$ 行由对应像素 $(u_k,v_k)$ 的空间梯度与像素雅可比构成：
 \begin{equation}
-    \mathbf{J}(x, y) = \begin{bmatrix} \alpha_u & 0 & 0 & 0 & 0 & -(y - v_0) \\ 0 & \alpha_v & 0 & 0 & 0 & (x - u_0) \end{bmatrix}
+\mathbf{L}_{I}^{(k)} = -\nabla I(u_k,v_k)^{\top}\mathbf{J}_{p}(u_k,v_k).
 \end{equation}
 
-
-在假设强度变化完全由传感器运动引起的情况下，图像亮度恒定约束提供：
+对 DCT 特征，定义从像素空间到频域特征空间的线性映射矩阵 $\mathbf{T}_K \in \mathbb{R}^{K\times MN}$，它表示“先做二维 DCT，再按 Zigzag 顺序选取前 $K$ 个系数”。于是 DCT 特征向量可写为
 \begin{equation}
-    \dot{\mathbf{v}}_p = \mathbf{J}(x,y) \, \mathbf{v}_c,
-\label{eq:Jpixel}
+\mathbf{s} = \mathbf{T}_K\mathbf{i}.
 \end{equation}
+
+由上式直接得
 \begin{equation}
-\dot{\boldsymbol{I}}(x,y) = \nabla \boldsymbol{I}(x,y) \cdot \dot{\mathbf{v}}_p = -\nabla I(x, y)^\top \mathbf{J}(x, y) \mathbf{v}_c,
-\label{eq:dIdt}
+\dot{\mathbf{s}} = \mathbf{T}_K\dot{\mathbf{i}} = \mathbf{T}_K\mathbf{L}_{I}\mathbf{v}_{in}.
 \end{equation}
 
-其中 $\nabla \boldsymbol{I} = \left[ \partial_x \boldsymbol{I}, \partial_y \boldsymbol{I}\right]^\top$ 表示空间强度梯度，$\dot{\mathbf{v}}_p$ 表示投影到像素 $(x,y)$ 的点的瞬时 3D 速度 \cite{chaumette2006visual}.
-
-
-对 \Cref{2D-DCT-equation} 关于时间求导得：
+因此，DCT 特征的交互矩阵可统一写为
 \begin{equation}
-\dot{\boldsymbol{F}}_{uv} = \sum_{x,y} \phi_{uv}(x,y) \, \dot{\boldsymbol{I}}(x,y).
-\label{eq:dotF}
+\mathbf{L}_{PA} = \mathbf{T}_K\mathbf{L}_{I} \in \mathbb{R}^{K\times 3}.
 \end{equation}
 
-将 \Cref{eq:dIdt} 和 \Cref{eq:Jpixel} 代入 \Cref{eq:dotF} 得：
+这说明，基于 DCT 的视觉伺服本质上是将像素级 photometric visual servoing 投影到一个低维、低频优先的频域子空间中。与直接使用全部像素强度相比，DCT-VS 保留了与伺服相关的主导低频结构，同时降低了高频噪声和维度负担。于是面内特征动力学最终统一为
 \begin{equation}
-\dot{F}_{uv} = \underbrace{\left( \sum_{x,y} \phi_{uv}(x,y) \cdot [-\nabla I(x,y)^\top \mathbf{J}(x,y)] \right)}_{\mathbf{L}_{F_{uv}}} \mathbf{v}_c,
-\label{eq:LFuv}
-\end{equation}
-其中 $\boldsymbol{L}_{F_{uv}} \in \mathbb{R}^{1 \times 6}$ 构成了系数 $\boldsymbol{F}_{uv}$ 的交互行向量，利用正交投影 $\mathbf{J}(x, y)$ 的稀疏特性，我们可以清晰地看到不同自由度之间的解耦关系.
-
-\begin{equation} \label{eq:LFuv_explicit}
-\begin{aligned}
-	\boldsymbol{L}_{F_{uv}} = 
-	&\left[
-		\nabla_x \boldsymbol{F}_{uv}, \quad 
-		\nabla_y \boldsymbol{F}_{uv}, \quad  
-		0, \right. \\
-	&\left.\;
-		0, \quad  
-		0, \quad  
-		\nabla_{\omega_z} \boldsymbol{F}_{uv}
-	\right].
-\end{aligned}
+\dot{\mathbf{s}} = \mathbf{L}_{PA}\mathbf{v}_{in}.
 \end{equation}
 
-其中面内平移分量面内平移分量 ($v_x, v_y$):
-\begin{equation} 
-L_{v_x} =\nabla_x \boldsymbol{F}_{uv}= -\alpha_u \sum \phi_{uv}(x,y) \frac{\partial I}{\partial x},
-\end{equation} 
-
-\begin{equation} 
-L_{v_y} = \nabla_y \boldsymbol{F}_{uv}=-\alpha_v \sum \phi_{uv}(x,y) \frac{\partial I}{\partial y}，
-\end{equation} 
-面内旋转分量 ($\omega_z$):
-\begin{equation} 
-L_{\omega_z} = \nabla_{\omega_z} \boldsymbol{F}_{uv}=\sum \phi_{uv}(x,y) \left( \frac{\partial I}{\partial x}(y - v_0)
-- \frac{\partial I}{\partial y}(x - u_0) \right).
-\end{equation} 
-对于面外解耦分量 ($v_z, \omega_x, \omega_y$)来说，由于 $\mathbf{J}(x,y)$ 在第 3, 4, 5 列均为 0，推导出：$L_{v_z} = 0, \quad L_{\omega_x} = 0, \quad L_{\omega_y} = 0$ 这证明了单一光声平面无法观测面外运动,在正交模型下，单个像素点对速度的观测秩仅为 3，通过 DCT 叠加 $K$ 个系数可保证面内控制的稳定性 .
-
-对索引直至 $(u,v)$ 的系数应用常规的曲折扫描（zigzag）模式，可生成 \Cref{visual feature} 中定义的堆叠特征向量，其排序遵循 \Cref{fig:feature_construction}(c)所示的模式.汇总曲折扫描集合中所有索引 $(i,j)$ 的交互行 $\boldsymbol{L}_{F_{ij}}$ ，即可生成光声全局交互矩阵：
+基于此，可将面内控制律写为
 \begin{equation}
-\boldsymbol{L}_{s_{(u,v)}} = 
-\begin{bmatrix}
-\boldsymbol{L}_{\boldsymbol{F}_{00}}^\top, & 
-\boldsymbol{L}_{\boldsymbol{F}_{01}}^\top, & 
-\cdots, & 
-\boldsymbol{L}_{\boldsymbol{F}_{uv}}^\top
-\end{bmatrix}^\top \in \mathbb{R}^{K \times 6},
-\label{eq:Lsuvmat}
+\mathbf{v}_{PA} = -\lambda_{PA}(\mathbf{L}_{PA}^{\top}\mathbf{L}_{PA} + \mu \mathbf{I}_3)^{-1}\mathbf{L}_{PA}^{\top}\mathbf{e}_s,
+\qquad
+\mathbf{e}_s = \mathbf{s} - \mathbf{s}^{*}.
 \end{equation}
-以及相应的堆叠特征动力学方程：
-\begin{equation}
-\dot{\mathbf{s}}_{uv} = \boldsymbol{L}_{s_{uv}} \, \mathbf{v}_c.
-\end{equation}
-该公式与 \Cref{eq:L_s_uv} 及 \Cref{eq:s=LV} 等效，建立了光声探头的移动速度与按曲折扫描排序的 DCT 系数时间导数之间的线性映射.这一关系构成了随后开发的频域视觉伺服控制器的基础.
 
-
+式中的矩阵形式与上一节对单个系数 $F_{pq}$ 的显式逐项求导结果完全等价；前者是紧凑的整体表达，后者是展开形式。后续推导统一采用矩阵形式，以避免符号重复和维度歧义。
 \subsection{用于血管监测的自适应控制律}
 \label{sec:Adaptive_Control_Law}
-
 \subsubsection{基于梯度加权的鲁棒控制执行}
 
-在光声成像伺服过程中，由于DCT系数 $K$ 随会时间动态变化，于是传统的恒定增益控制律易引发执行器的速度突变.为此，本文采用受 Levenberg-Marquardt (L-M) 算法启发的自适应控制律 .面内机器人速度指令 $\mathbf{v}_{PA} = [v_x, v_y, \omega_z]^\top$ 计算如下\cite{dame2009entropy,collewet2011photometric,marchand2019subspace}：
+在光声成像伺服过程中，由于 DCT 系数维数 $K$ 会随误差状态动态变化，传统恒定增益控制律容易引发速度指令突变。为此，本文采用受 Levenberg-Marquardt (LM) 算法启发的阻尼控制律。面内机器人速度指令 $\mathbf{v}_{PA} = [v_x, v_y, \omega_z]^\top$ 计算为 \cite{dame2009entropy,collewet2011photometric,marchand2019subspace}
 \begin{equation}
-\mathbf{v}_{PA} = -\lambda_{PA} (\mathbf{L}_{PA}^\top \mathbf{L}_{PA} + \mu \mathbf{I})^{-1} \mathbf{L}_{PA}^\top \mathbf{e}_s.
+\mathbf{v}_{PA} = -\lambda_{PA}(\mathbf{L}_{PA}^{\top}\mathbf{L}_{PA} + \mu \mathbf{I}_3)^{-1}\mathbf{L}_{PA}^{\top}\mathbf{e}_s.
 \end{equation}
 
-其中，$\boldsymbol{\mathbf{L}}_{PA} \in \mathbb{R}^{K \times 3}$ 是从第 \cref{comparative Formulation}节光声全局交互矩阵 $\boldsymbol{L}_{s_{uv}}$ 中提取的对应面内自由度的子矩阵 .$\mu$ 是根据 $\bar{e}_s$ 动态调整的阻尼因子，其定义为$\mu = k \cdot \|e_s\|^2$，用于在特征空间维度切换时保障控制律的连续性与局部稳定性 .
+其中
+\begin{equation}
+\mathbf{e}_s = \mathbf{s} - \mathbf{s}^{*}, \qquad
+\mu = k_{\mu}\|\mathbf{e}_s\|_2^2, \qquad k_{\mu} > 0 .
+\end{equation}
+
+当 $K$ 变化时，$\mathbf{L}_{PA}$ 与 $\mathbf{e}_s$ 均由当前选择矩阵 $\mathbf{P}_K$ 决定，即
+\begin{equation}
+\mathbf{L}_{PA} = \mathbf{P}_K \mathbf{L}_{PA}^{full}, \qquad
+\mathbf{e}_s = \mathbf{P}_K \mathbf{e}_{full} .
+\end{equation}
+这样，第 1.3 节中的自适应维数选择与本节控制律形成了闭合定义：误差评估在固定维度全特征上进行，而实际控制只作用于当前选中的前 $K$ 维特征。
 
 \subsection{双传感器混合 6-DoF 伺服框架}
-由于单一的二维光声横截面在成像物理机制上对面外运动（即法向距离、俯仰角与偏航角）缺乏唯一可观测性 .为了实现鲁棒的 6-DoF 机器人光声成像，本系统集成了一个 Depth Camera 深度相机，建立了一个两阶段的“全局 PBVS 引导 + 局部混合双伺服”策略 .
-
+由于单一的二维光声横截面在成像物理机制上对面外运动缺乏充分可观测性，为实现鲁棒的 6-DoF 光声引导伺服，本系统将光声频域反馈与深度几何反馈进行分任务融合。
 
 \subsubsection{全局混合交互矩阵构建}
 
-本系统通过任务空间正交分解，将来自光声频域特征的图像空间反馈与来自深度相机的笛卡尔空间反馈进行集成 .定义全任务空间误差向量为 $\mathbf{e}_{global} = [\mathbf{e}_{PA}^\top, \mathbf{e}_{out}^\top]^\top \in \mathbb{R}^{K+3}$，其中 $\mathbf{e}_{PA}$ 为基于 DCT 的频域特征误差，$\mathbf{e}_{out}$ 为基于深度信息的几何偏差 .根据一阶微分运动学，全系统特征变化与机器人末端 6-DoF 速度 $\mathbf{v} = [v_x, v_y, v_z, \omega_x, \omega_y, \omega_z]^\top$ 的映射关系由全局混合交互矩阵 $\mathbf{L}_{global}$ 描述: 
+定义面内误差与面外误差分别为
 \begin{equation}
-    \dot{\mathbf{e}}_{global} = \mathbf{L}_{global} \mathbf{v}.
+\mathbf{e}_{s} \in \mathbb{R}^{K}, \qquad
+\mathbf{e}_{out} \in \mathbb{R}^{3},
+\end{equation}
+全局误差向量写为
+\begin{equation}
+\mathbf{e} =
+\begin{bmatrix}
+\mathbf{e}_{s} \\ \mathbf{e}_{out}
+\end{bmatrix}
+\in \mathbb{R}^{K+3}.
 \end{equation}
 
-结合第\cref{comparative Formulation}节的面内推导与第 \cref{sec:out_of_plane}节的光声平面外约束，最终的 6-DoF 混合交互矩阵 呈现如下分块对角结构:
-
+为突出任务空间解耦，定义按控制子任务重排后的分组速度向量
 \begin{equation}
-    L_{global} = \begin{bmatrix} L_{PA(K \times 3)} & \mathbf{0}_{K \times 3} \\ \mathbf{0}_{3 \times 3} & L_{out(3 \times 3)} \end{bmatrix} \in \mathbb{R}^{(K+3) \times 6}.
+\bar{\mathbf{v}} =
+\begin{bmatrix}
+\mathbf{v}_{in} \\ \mathbf{v}_{out}
+\end{bmatrix}
+=
+\begin{bmatrix}
+v_x \\ v_y \\ \omega_z \\ v_z \\ \omega_x \\ \omega_y
+\end{bmatrix}
+\in \mathbb{R}^{6},
+\end{equation}
+其中
+\begin{equation}
+\mathbf{v}_{in} =
+\begin{bmatrix}
+v_x \\ v_y \\ \omega_z
+\end{bmatrix},
+\qquad
+\mathbf{v}_{out} =
+\begin{bmatrix}
+v_z \\ \omega_x \\ \omega_y
+\end{bmatrix}.
 \end{equation}
 
-\begin{itemize}
-    \item 光声面内子空间 $\mathcal{V}_{in}$（前 $K$ 行）：对应自由度 $\{v_x, v_y, \omega_z\}$，由 $K$ 个自适应 DCT 系数梯度组成.其在面外分量处取 0，体现了光声切片对面外位移的解耦特性.
-    \item 面外子空间 $\mathcal{V}_{out}$（后 3 行）：对应自由度 $\{v_z, \omega_x, \omega_y\}$，由深度相机几何约束主导.由于正交投影模型在物理上屏蔽了 $v_z, \omega_x, \omega_y$ 对二维图像灰度分布的贡献，这在数学上保证了全局交互矩阵 $L_{global}$ 的非对角块项 $\frac{\partial \mathbf{s}}{\partial \mathbf{v}_{out}}$ 恒等于零.这种结构性解耦不仅简化了计算，更从根源上消除了多传感器反馈之间的非线性耦合干涉.
-    \item 自适应维度：矩阵行数 $(K+3)$ 随第 1.3 节定义的自适应因子 $\eta$ 动态调整，以平衡计算效率与追踪精度.
-\end{itemize}
+则在局部一阶解耦近似下，全局误差动力学可写为
+\begin{equation}
+\dot{\mathbf{e}} = \bar{\mathbf{L}}_{global}\bar{\mathbf{v}}, \qquad
+\bar{\mathbf{L}}_{global} =
+\begin{bmatrix}
+\mathbf{L}_{PA} & \mathbf{0}_{K\times 3} \\
+\mathbf{0}_{3\times 3} & \mathbf{L}_{out}
+\end{bmatrix}
+\in \mathbb{R}^{(K+3)\times 6}.
+\end{equation}
+其中，$\mathbf{L}_{PA} \in \mathbb{R}^{K\times 3}$ 为第 1.3 节推导得到的 DCT 面内交互矩阵；$\mathbf{L}_{out} \in \mathbb{R}^{3\times 3}$ 为第 1.1 节给出的面外局部线性化矩阵，且在工作点附近满足
+\begin{equation}
+\mathbf{L}_{out} \approx \mathbf{I}_{3}.
+\end{equation}
 
+若仍希望使用机器人末端速度的标准排列
+\begin{equation}
+\mathbf{v} =
+\begin{bmatrix}
+v_x \\ v_y \\ v_z \\ \omega_x \\ \omega_y \\ \omega_z
+\end{bmatrix},
+\end{equation}
+则存在置换矩阵 $\mathbf{\Pi} \in \mathbb{R}^{6\times 6}$，使得
+\begin{equation}
+\bar{\mathbf{v}} = \mathbf{\Pi}\mathbf{v},
+\end{equation}
+从而
+\begin{equation}
+\dot{\mathbf{e}} = \mathbf{L}_{global}\mathbf{v}, \qquad
+\mathbf{L}_{global} = \bar{\mathbf{L}}_{global}\mathbf{\Pi}.
+\end{equation}
+
+式中的块对角结构表示的是工作点附近的局部一阶解耦。它意味着：在当前正交切片近似下，光声频域特征对 $(v_x,v_y,\omega_z)$ 主导敏感，而深度几何误差对 $(v_z,\omega_x,\omega_y)$ 主导敏感；该结构用于控制设计，而不声称真实成像过程在全局范围内严格无耦合。
 
 \subsubsection{混合控制律合成与稳定性分析}
-最终的机器人 6-DoF 速度指令 $\mathbf{v}$ 是由面内与面外控制律直接拼接合成的 ：
 
+根据第 1.3 节与第 1.1 节，分别设计面内与面外控制律
 \begin{equation}
-    \mathbf{v} = \mathbf{S}_{PA} \mathbf{v}_{PA} + \mathbf{S}_{out} \mathbf{v}_{out},
+\mathbf{v}_{PA}
+=
+-\lambda_{PA}
+(\mathbf{L}_{PA}^{\top}\mathbf{L}_{PA} + \mu \mathbf{I}_3)^{-1}
+\mathbf{L}_{PA}^{\top}\mathbf{e}_{s},
+\end{equation}
+\begin{equation}
+\mathbf{v}_{out} = -\boldsymbol{\Lambda}_{out}\mathbf{e}_{out}, \qquad
+\boldsymbol{\Lambda}_{out} = \mathrm{diag}(\lambda_d,\lambda_{\omega},\lambda_{\omega}).
 \end{equation}
 
-其中 $\mathbf{S}$ 为选择矩阵，$\mathbf{v}_{PA} = -\lambda_{PA} \mathbf{L}_{PA}^+ \mathbf{e}_{PA}$，$\mathbf{v}_{out} = -\lambda_{out} \mathbf{e}_{out}$ .
-
-在混合伺服框架中，多传感器反馈的集成通常面临控制干涉风险.本文通过任务空间正交化，确保了系统在理论上的全局稳定.
-
-基于光声成像的物理切片机制，特征变化 $\dot{\mathbf{s}}$ 仅受成像平面内运动子空间 $\mathcal{V}_{in} = \{v_x, v_y, \omega_z\}$ 的激励 .由于光声成像仅能感知声束平面（$Z=0$）内的生物组织吸收分布，任何纯面外运动（$v_z, \omega_x, \omega_y$）在短时间内不会引起面内血管拓扑结构的二阶变化（即 $L_{PA}$ 对面外速度的偏导接近 0）.相对地，由深度相机提取的几何约束严格限制在面外子空间 $\mathcal{V}_{out} = \{v_z, \omega_x, \omega_y\}$ .由于这两个子空间在欧氏空间中互为补空间且交集为空（$\mathcal{V}_{in} \cap \mathcal{V}_{out} = \emptyset$），光声全局交互矩阵 $\mathbf{L}_{global}$ 呈现理想的分块对角结构 ：
+于是分组速度向量为
 \begin{equation}
-    \mathbf{L}_{global} = \begin{bmatrix} \mathbf{L}_{PA} & \mathbf{0} \\ \mathbf{0} & \mathbf{L}_{out} \end{bmatrix}.
+\bar{\mathbf{v}} =
+\begin{bmatrix}
+\mathbf{v}_{PA} \\ \mathbf{v}_{out}
+\end{bmatrix}.
 \end{equation}
-接下来，我们将证明Lyapunov 稳定性.定义全局正定 Lyapunov 候选函数 $V(t)$ 为光声面内频域误差与面外几何误差的加权平方和：
-
+再由前述置换关系恢复标准 6-DoF 末端速度
 \begin{equation}
-    V(t) = \frac{1}{2} \mathbf{e}_{PA}^\top \mathbf{e}_{PA} + \frac{1}{2} \mathbf{e}_{out}^\top \mathbf{e}_{out}，
+\mathbf{v} = \mathbf{\Pi}^{\top}\bar{\mathbf{v}}.
 \end{equation}
-对 $V(t)$ 求时间导数，并代入系统动力学方程 $\dot{\mathbf{e}} = \mathbf{L}_{global} \mathbf{v}$：
 
+若采用选择矩阵写法，则有等价表达
 \begin{equation}
-    \dot{V} = \mathbf{e}_{PA}^\top \mathbf{L}_{PA} \mathbf{v}_{PA} + \mathbf{e}_{out}^\top \mathbf{L}_{out} \mathbf{v}_{out}.
+\mathbf{v} = \mathbf{S}_{PA}\mathbf{v}_{PA} + \mathbf{S}_{out}\mathbf{v}_{out},
 \end{equation}
-代入控制律 $\mathbf{v}_{PA} = -\lambda_{PA} \mathbf{L}_{PA}^+ \mathbf{e}_{PA}$ 和 $\mathbf{v}_{out} = -\lambda_{out} \mathbf{e}_{out}$ ,且在正交投影下，$\mathbf{L}_{out}$ 通常简化为单位阵 $\mathbf{I}_3$：
+其中
 \begin{equation}
-    \dot{V} = -\lambda_{PA} \mathbf{e}_{PA}^\top (\mathbf{L}_{PA} \mathbf{L}_{PA}^+) \mathbf{e}_{PA} - \lambda_{out} \mathbf{e}_{out}^\top \mathbf{e}_{out}
+\mathbf{S}_{PA} =
+\begin{bmatrix}
+1 & 0 & 0 \\
+0 & 1 & 0 \\
+0 & 0 & 0 \\
+0 & 0 & 0 \\
+0 & 0 & 0 \\
+0 & 0 & 1
+\end{bmatrix},
+\qquad
+\mathbf{S}_{out} =
+\begin{bmatrix}
+0 & 0 & 0 \\
+0 & 0 & 0 \\
+1 & 0 & 0 \\
+0 & 1 & 0 \\
+0 & 0 & 1 \\
+0 & 0 & 0
+\end{bmatrix}.
 \end{equation}
-由于 $\mathbf{L}_{PA} \mathbf{L}_{PA}^+$ 为半正定矩阵且 $\lambda_{out} > 0$ ，可知 $\dot{V} \le 0$.可以看出，通过 DCT 系数的自适应选择以及深度相机提供的非共线法向量，确保了$L_{PA}$ 在 $K$ 维特征下的满秩性.这证明了系统误差在 Lyapunov 意义下是单调不增的，即系统具有局部渐近稳定性 .
 
-根据第 \cref{secdynamic coeff}节，特征维度 $K$ 随误差收敛动态增加 .虽然 $K$ 的跳变会导致 Lyapunov 函数 $V(t)$ 在切换瞬间不连续，但本文采用的 Levenberg-Marquardt 阻尼项 $\mu \mathbf{I}$ 能够有效平滑控制量 $\mathbf{v}_{PA}$ .当 $K$ 增大时，系统引入更高频的频谱能量，相当于在当前势能面附近引入了更精细的局部梯度信息，这不会破坏总能量的下降趋势，从而确保了多分辨率特征切换过程中的系统鲁棒性.此外，这种物理层面的解耦特性使得系统具备天然的抗扰动能力：由患者呼吸引起的面外周期性位移由 PBVS 闭环实时补偿，而不会耦合到面内视觉特征的梯度计算中 .这种分而治之的策略充分满足了血管监测任务对长时间、高精度对齐的严苛要求.
+在目标位姿附近，定义面内局部位姿误差与面外局部位姿误差分别为
+\begin{equation}
+\boldsymbol{\xi}_{in} =
+\begin{bmatrix}
+\Delta x \\ \Delta y \\ \Delta \theta_z
+\end{bmatrix},
+\qquad
+\boldsymbol{\xi}_{out} =
+\begin{bmatrix}
+\Delta z \\ \Delta \theta_x \\ \Delta \theta_y
+\end{bmatrix}.
+\end{equation}
 
+在小误差条件下，特征误差满足一阶近似
+\begin{equation}
+\mathbf{e}_{s} \approx \mathbf{L}_{PA}^{*}\boldsymbol{\xi}_{in}, \qquad
+\mathbf{e}_{out} \approx \mathbf{L}_{out}^{*}\boldsymbol{\xi}_{out},
+\end{equation}
+其中 $\mathbf{L}_{PA}^{*}$ 与 $\mathbf{L}_{out}^{*}$ 分别为在目标工作点处计算得到的局部交互矩阵。
+
+将控制律代入误差动力学，可得闭环局部线性系统
+\begin{equation}
+\dot{\boldsymbol{\xi}}_{in}
+=
+-\lambda_{PA}
+(\mathbf{L}_{PA}^{*\top}\mathbf{L}_{PA}^{*} + \mu \mathbf{I}_3)^{-1}
+\mathbf{L}_{PA}^{*\top}\mathbf{L}_{PA}^{*}\boldsymbol{\xi}_{in},
+\end{equation}
+\begin{equation}
+\dot{\boldsymbol{\xi}}_{out} = -\boldsymbol{\Lambda}_{out}\boldsymbol{\xi}_{out},
+\qquad \text{当 } \mathbf{L}_{out}^{*} \approx \mathbf{I}_{3}.
+\end{equation}
+
+取 Lyapunov 候选函数
+\begin{equation}
+V(\boldsymbol{\xi}) =
+\frac{1}{2}\boldsymbol{\xi}_{in}^{\top}\boldsymbol{\xi}_{in}
++ \frac{1}{2}\boldsymbol{\xi}_{out}^{\top}\boldsymbol{\xi}_{out}.
+\end{equation}
+则其导数为
+\begin{equation}
+\dot{V}
+=
+-\lambda_{PA}\boldsymbol{\xi}_{in}^{\top}
+(\mathbf{L}_{PA}^{*\top}\mathbf{L}_{PA}^{*} + \mu \mathbf{I}_3)^{-1}
+\mathbf{L}_{PA}^{*\top}\mathbf{L}_{PA}^{*}\boldsymbol{\xi}_{in}
+- \boldsymbol{\xi}_{out}^{\top}\boldsymbol{\Lambda}_{out}\boldsymbol{\xi}_{out}.
+\end{equation}
+
+若满足以下局部条件：
+\begin{enumerate}
+    \item 目标特征可达；
+    \item $\mathbf{L}_{PA}^{*}$ 满列秩，即 $\operatorname{rank}(\mathbf{L}_{PA}^{*}) = 3$；
+    \item $\mathbf{L}_{out}^{*}$ 非奇异，且在工作点附近可近似为单位阵；
+    \item 自适应维数 $K$ 在每个局部收敛区间内保持分段常值，且切换频率有限；
+\end{enumerate}
+则上式右端为负定，从而闭环系统在目标位姿附近局部渐近稳定。特别地，当 $\mu > 0$ 时，Levenberg-Marquardt 阻尼项提高了 $\mathbf{L}_{PA}^{*\top}\mathbf{L}_{PA}^{*}$ 条件数较差时的数值鲁棒性，但不改变该局部稳定性结论。
+
+需要强调的是，自适应增加 DCT 系数并不自动保证任意场景下的满秩性；它只能在一般情况下提升局部雅可比的信息丰富度，从而增加 $\mathbf{L}_{PA}$ 满列秩的可能性。对于强对称、低纹理或弱对比场景，仍可能出现秩退化，因此这一条件需要通过初始化与特征选择共同保证。
+
+此外，当 $K$ 随误差变化而调整时，系统属于分段光滑的切换闭环系统。本文不声称对任意切换规律都成立的全局稳定性，而是在如下工程约束下讨论局部稳定性：$K$ 仅在误差单调下降区间内缓慢变化，且相邻切换时刻之间存在最小驻留时间。此时，LM 阻尼项有助于抑制因特征维数变化带来的速度突变，从而提升闭环响应的连续性与实际鲁棒性。
 \bibliographystyle{IEEEtran}
 \bibliography{references}
 
